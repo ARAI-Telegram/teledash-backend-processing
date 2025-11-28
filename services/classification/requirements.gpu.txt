@@ -1,0 +1,4 @@
+-f https://download.pytorch.org/whl/cu124
+torch
+transformers==4.44.2
+numpy==1.25.2

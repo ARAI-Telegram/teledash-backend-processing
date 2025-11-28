@@ -1,0 +1,3 @@
+fastapi==0.70.1
+uvicorn[standard]==0.34.0
+aiohttp==3.8.1 # required by elasticsearch async client

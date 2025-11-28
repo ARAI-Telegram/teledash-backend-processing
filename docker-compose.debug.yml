@@ -1,0 +1,140 @@
+# Note: In case teledash main backend and this project are not running on the same docker network, 
+# remove the `networks` section and the `${TELEDASH_DOCKER_NETWORK}` variable from the services.
+services:
+  classification:
+    build:
+      context: .
+      dockerfile: ./services/classification/Dockerfile
+      args:
+        GPU_USE: "${GPU_USE}"
+        CONTAINER_TYPE: worker
+    container_name: classification
+    volumes:
+      - ./common:/app/common
+      - ./services/classification:/app
+      - ./services/classification/tmp:/app/tmp
+      - classification-bashhistory:/commandhistory
+    networks: &network
+      - ${TELEDASH_DOCKER_NETWORK}
+    env_file: &env
+      - .env
+    command: tail -f /dev/null
+    depends_on:
+      - redis-processing
+
+  text-embeddings: 
+    build:
+      context: .
+      dockerfile: ./services/semantic_text_search/embedding_worker/Dockerfile
+      args:
+        CONTAINER_TYPE: worker
+    container_name: text-embeddings
+    volumes:
+      - ./common:/app/common
+      - ./services/semantic_text_search/embedding_worker:/app
+      - ./services/semantic_text_search/shared:/app/shared
+      - ./services/semantic_text_search/tmp:/app/tmp
+      - text-embeddings-bashhistory:/commandhistory
+    networks: *network
+    env_file: *env
+    command: tail -f /dev/null
+    depends_on:
+      - redis-processing
+
+  text-search-api: # TODO: should be renamed so that clear this is text specific API
+    build:
+      context: .
+      dockerfile: ./services/semantic_text_search/api/Dockerfile
+    container_name: text-search-api
+    volumes:
+      - ./common:/app/common
+      - ./services/semantic_text_search/api:/app
+      - ./services/semantic_text_search/tmp:/app/tmp
+      - ./services/semantic_text_search/shared:/app/shared
+    networks: *network
+    env_file: *env
+    command: tail -f /dev/null
+    ports:
+      - ${TEXT_FAST_API_PORT}:${TEXT_FAST_API_PORT} # hostport:containerport 
+
+  image-embeddings:
+    build:
+      context: .
+      dockerfile: ./services/semantic_image_search/embedding_worker/Dockerfile
+      args:
+        CONTAINER_TYPE: worker
+    container_name: image-embeddings
+    volumes: # use anchors
+      - ./common:/app/common
+      - ./services/semantic_image_search/shared:/app/shared
+      - ./services/semantic_image_search/embedding_worker:/app
+      - ./services/semantic_image_search/tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: tail -f /dev/null
+    depends_on:
+      - redis-processing
+
+  image-search-api:
+    build:
+      context: .
+      dockerfile: ./services/semantic_image_search/api/Dockerfile
+    container_name: image-search-api
+    volumes:
+      - ./common:/app/common
+      - ./services/semantic_image_search/shared:/app/shared
+      - ./services/semantic_image_search/api:/app
+      - ./services/semantic_image_search/tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: tail -f /dev/null
+    ports:
+      - ${IMAGE_FAST_API_PORT}:${IMAGE_FAST_API_PORT} # hostport:containerport # TODO: different ports than for semantic search? I suppose yes
+
+  asr:
+    build:
+      context: .
+      dockerfile: ./services/asr/Dockerfile
+      args:
+        CONTAINER_TYPE: worker
+    container_name: asr
+    volumes:
+      - ./common:/app/common
+      - ./services/asr:/app
+      - asr-bashhistory:/commandhistory
+      - ./services/asr/tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: tail -f /dev/null
+    depends_on:
+      - redis-processing
+
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:8.14.3
+  #   container_name: kibana
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=http://${ELASTIC_HOST}:${ELASTIC_PORT}
+  #     - SERVER_NAME=kibana
+  #   networks: *network
+  #   env_file: *env
+  #   command: tail -f /dev/null
+  #   depends_on:
+  #     - redis
+
+  redis-processing:
+    image: redis:latest
+    container_name: redis-processing
+    networks: *network
+    expose:
+      - ${REDIS_PORT}
+
+volumes:
+  classification-bashhistory:
+  text-embeddings-bashhistory:
+  api-bashhistory:
+  asr-bashhistory:
+
+networks:
+  teledash_default:  # here ${TELEDASH_DOCKER_NETWORK} doesn't work, cause its a key. Needs to be replaced if name differs from default.
+    external: true
+

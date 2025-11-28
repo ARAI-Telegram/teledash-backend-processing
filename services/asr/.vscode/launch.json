@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Celery Worker (asr queue)",
+      "consoleTitle": "Celery (asr queue)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "console": "integratedTerminal",
+      "args": [
+        "--app=main",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=asr",
+        "--pool=threads",
+        "--concurrency=1",
+        "--hostname=asr-worker@%h"
+      ]
+    }
+  ]
+}

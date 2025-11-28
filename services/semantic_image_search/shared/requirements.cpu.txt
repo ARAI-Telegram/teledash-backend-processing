@@ -1,0 +1,7 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+transformers==4.44.2   # modern transformers version that supports CLIPProcessor/CLIPModel
+Pillow==9.5.0          # newer Pillow is fine
+numpy==1.25.2
+safetensors==0.4.1     # needed for model.safetensors
+boto3>=1.26.0          # S3-compatible storage client (replaces minio)

@@ -1,0 +1,33 @@
+{
+  "name": "Image Embedding Devcontainer",
+  "dockerComposeFile": [
+    "../../../docker-compose.debug.yml" //,
+  ],
+  "service": "image-embeddings",
+  "workspaceFolder": "/app",
+  "remoteUser": "appuser", // need to specify non-root user (see Dockerfile), so files/folders are created with correct owner/groups
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.autoImportCompletions": true,
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit",
+          "source.fixAll": "explicit"
+        }
+      },
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+  "postCreateCommand": [
+    "nvidia-smi"
+  ]
+}

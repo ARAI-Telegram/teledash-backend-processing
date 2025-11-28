@@ -1,0 +1,270 @@
+# Note: In case teledash main backend and this project are not running on the same docker network,
+# remove the `networks` section and the `${TELEDASH_DOCKER_NETWORK}` variable from the services.
+#
+# GPU Support: For GPU-enabled services (classification, asr), uncomment the `reservations.devices`
+# section under `deploy.resources` when GPU_USE=true in .env. Leave commented for CPU-only mode.
+services:
+  classification:
+    profiles: ["classification", "all"]
+    build: &classification-build
+      context: .
+      dockerfile: ./services/classification/Dockerfile
+      args:
+        GPU_USE: "${GPU_USE}"
+        CONTAINER_TYPE: worker
+    environment:
+      CONTAINER_TYPE: worker
+    container_name: classification
+    volumes: &classification-volumes
+      - classification-bashhistory:/commandhistory
+      - classification-tmp:/app/tmp
+    networks: &network
+      - ${TELEDASH_DOCKER_NETWORK}
+    env_file: &env
+      - .env
+    command: celery --app=main worker --loglevel=INFO --queues=classification --hostname=classification-worker@%h --concurrency=1
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2"
+        # Uncomment for GPU support (requires GPU_USE=true in .env)
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: all
+        #       capabilities: [gpu]
+
+  classification-beat:
+    profiles: ["classification", "all"]
+    build:
+      <<: *classification-build
+      args:
+        GPU_USE: "${GPU_USE}"
+        CONTAINER_TYPE: beat
+    container_name: classification-beat
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: beat
+    command: celery --app=main beat --loglevel=INFO
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.25"
+
+  text-embeddings:
+    profiles: ["text-search", "all"]
+    build: &text-embeddings-build
+      context: .
+      dockerfile: ./services/semantic_text_search/embedding_worker/Dockerfile
+      args:
+        CONTAINER_TYPE: worker
+    container_name: text-embeddings
+    volumes: &text-embeddings-volumes
+      - text-embeddings-tmp:/app/tmp
+      - text-embeddings-bashhistory:/commandhistory
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: worker
+    command: celery --app=main worker --loglevel=INFO --queues=text-embeddings --hostname=text-embedding-worker@%h --concurrency=1
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 8g # Recommended starting limit for paraphrase-multilingual-MiniLM-L12-v2 (float32, batch_size=32).
+          cpus: "2"
+
+  text-embeddings-beat:
+    profiles: ["text-search", "all"]
+    build:
+      <<: *text-embeddings-build
+      args:
+        CONTAINER_TYPE: beat
+    container_name: text-embeddings-beat
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: beat
+    command: celery --app=main beat --loglevel=INFO
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.25"
+
+  text-search-api:
+    profiles: ["text-search", "all"]
+    build:
+      context: .
+      dockerfile: ./services/semantic_text_search/api/Dockerfile
+    container_name: text-search-api
+    volumes: *text-embeddings-volumes
+    networks: *network
+    env_file: *env
+    command: uvicorn main:app --host 0.0.0.0 --port ${TEXT_FAST_API_PORT}
+    # ports:
+    #  - ${TEXT_FAST_API_PORT}:${TEXT_FAST_API_PORT} # hostport:containerport
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1"
+
+  image-embeddings:
+    profiles: ["image-search", "all"]
+    build: &image-embeddings-build
+      context: .
+      dockerfile: ./services/semantic_image_search/embedding_worker/Dockerfile
+      args:
+        CONTAINER_TYPE: worker
+    container_name: image-embeddings
+    volumes: &image-embeddings-volumes
+      - image-embeddings-tmp:/app/tmp
+      - image-embeddings-bashhistory:/commandhistory
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=image-embeddings --hostname=image-embedding-worker@%h --concurrency=1
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "4"
+
+  image-embeddings-beat:
+    profiles: ["image-search", "all"]
+    build:
+      <<: *image-embeddings-build
+      args:
+        CONTAINER_TYPE: beat
+    container_name: image-embeddings-beat
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: beat
+    command: celery --app=main beat --loglevel=INFO
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.25"
+
+  image-search-api:
+    profiles: ["image-search", "all"]
+    build:
+      context: .
+      dockerfile: ./services/semantic_image_search/api/Dockerfile
+    container_name: image-search-api
+    volumes: *image-embeddings-volumes
+    networks: *network
+    env_file: *env
+    command: uvicorn main:app --host 0.0.0.0 --port ${IMAGE_FAST_API_PORT} # TODO: change if not the same API port as semantic search
+    # ports:
+    #  - ${IMAGE_FAST_API_PORT}:${IMAGE_FAST_API_PORT} # hostport:containerport
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1"
+
+  asr:
+    profiles: ["asr", "all"]
+    build: &asr-build
+      context: .
+      dockerfile: ./services/asr/Dockerfile
+      args:
+        GPU_USE: "${GPU_USE}"
+        CONTAINER_TYPE: worker
+    container_name: asr
+    volumes:
+      - asr-bashhistory:/commandhistory
+      - asr-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: worker
+    command: celery --app=main worker --loglevel=INFO --queues=asr --hostname=asr-worker@%h --pool=threads --concurrency=${ASR_CONCURRENCY}
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 16g # Increase based on ASR model size and concurrency.
+          cpus: "4"
+        # Uncomment for GPU support (requires GPU_USE=true in .env)
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: all
+        #       capabilities: [gpu]
+
+  asr-beat:
+    profiles: ["asr", "all"]
+    build:
+      <<: *asr-build
+      args:
+        CONTAINER_TYPE: beat
+    container_name: asr-beat
+    networks: *network
+    env_file: *env
+    environment:
+      CONTAINER_TYPE: beat
+    command: celery --app=main beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:8.14.3
+  #   container_name: kibana
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=http://${ELASTIC_HOST}:${ELASTIC_PORT}
+  #     - SERVER_NAME=kibana
+  #   networks: *network
+  #   env_file: *env
+  #   command: tail -f /dev/null
+  #   depends_on:
+  #     - redis-processing
+
+  redis-processing:
+    image: redis:latest
+    container_name: redis-processing
+    networks: *network
+    expose:
+      - ${REDIS_PORT}
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "0.5"
+
+volumes:
+  classification-bashhistory:
+  classification-tmp:
+  text-embeddings-bashhistory:
+  text-embeddings-tmp:
+  image-embeddings-bashhistory:
+  image-embeddings-tmp:
+  asr-bashhistory:
+  asr-tmp:
+
+networks:
+  teledash_default: # here ${TELEDASH_DOCKER_NETWORK} doesn't work, cause its a key. Needs to be replaced if name differs from default.
+    external: true

@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Celery (embeddings)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "console": "integratedTerminal",
+      "args": [
+        "--app=main",
+        "worker",
+        "--loglevel=INFO",
+        "--pool=threads",
+        "--queues=text-embeddings",
+        "--concurrency=1",
+        "--hostname=embedding-worker@%h",
+      ],
+    },
+  ]
+}

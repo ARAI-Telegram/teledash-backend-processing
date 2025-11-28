@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Celery (classification)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "console": "integratedTerminal",
+      "args": [
+        "--app=main",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=classification",
+        "--pool=threads",
+        "--concurrency=1",
+        "--hostname=classification-worker@%h",
+      ],
+    },
+  ]
+}
