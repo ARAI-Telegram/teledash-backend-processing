@@ -17,7 +17,7 @@ This is an **optional** component of Teledash. The main backend works without it
 
 - [Frontend](https://github.com/ARAI-Telegram/teledash-frontend) - Web interface
 - [Backend](https://github.com/ARAI-Telegram/teledash-frontend) - Core API and worker services for data collection and management
-- **Processing Backend** (this repository)(optional) - ML-powered services (semantic search, transcription, classification)
+- **Processing Backend** (this repository) (optional) - ML-powered services (semantic search, transcription, classification)
 
 
 ---
@@ -465,3 +465,9 @@ title = {{Teledash}},
 url = {https://github.com/ARAI-Telegram/teledash-backend},
 version = {0.1.0},
 }
+```
+
+## Funding
+
+![DATIpilot Logo](/assets/DATIpilot_Logo.png)
+
