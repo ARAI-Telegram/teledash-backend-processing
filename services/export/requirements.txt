@@ -1,0 +1,24 @@
+# Export Service Requirements
+
+# Core dependencies
+celery==5.2.3
+redis==4.5.4
+
+# Export generation
+weasyprint==60.1  # HTML to PDF
+jinja2==3.1.2  # Template engine
+matplotlib==3.8.0  # Chart generation for PDF
+plotly==5.18.0  # Interactive charts for HTML
+
+# Data processing
+pandas==2.1.0
+numpy==1.25.2
+
+# Storage
+boto3==1.28.0  # S3/MinIO client
+
+# Database
+elasticsearch==8.14.0
+
+# Utilities
+python-dateutil==2.8.2

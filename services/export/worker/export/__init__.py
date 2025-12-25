@@ -1,0 +1,3 @@
+"""
+Export service worker module.
+"""

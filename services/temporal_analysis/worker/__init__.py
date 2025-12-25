@@ -1,0 +1,1 @@
+"""Temporal Analysis Worker."""

@@ -30,12 +30,12 @@ services:
         limits:
           memory: 4g
           cpus: "2"
-        # Uncomment for GPU support (requires GPU_USE=true in .env)
-        # reservations:
-        #   devices:
-        #     - driver: nvidia
-        #       count: all
-        #       capabilities: [gpu]
+        # GPU support enabled
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE}"]
+              capabilities: [gpu]
 
   classification-beat:
     profiles: ["classification", "all"]
@@ -204,12 +204,12 @@ services:
         limits:
           memory: 16g # Increase based on ASR model size and concurrency.
           cpus: "4"
-        # Uncomment for GPU support (requires GPU_USE=true in .env)
-        # reservations:
-        #   devices:
-        #     - driver: nvidia
-        #       count: all
-        #       capabilities: [gpu]
+        # GPU support enabled
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE}"]
+              capabilities: [gpu]
 
   asr-beat:
     profiles: ["asr", "all"]
@@ -230,6 +230,163 @@ services:
         limits:
           memory: 256m
           cpus: "0.25"
+
+  sentiment:
+    profiles: ["sentiment", "text-analysis", "all"]
+    build: &sentiment-build
+      context: .
+      dockerfile: ./services/sentiment/Dockerfile
+      args:
+        COMPUTE_TYPE: "${COMPUTE_TYPE:-cpu}"
+    container_name: sentiment
+    volumes: &sentiment-volumes
+      - sentiment-bashhistory:/commandhistory
+      - sentiment-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=sentiment --hostname=sentiment-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2"
+        # GPU support (optional, uncomment if GPU_USE=true)
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       device_ids: ["${GPU_DEVICE}"]
+        #       capabilities: [gpu]
+
+  ner:
+    profiles: ["ner", "text-analysis", "all"]
+    build: &ner-build
+      context: .
+      dockerfile: ./services/ner/Dockerfile
+    container_name: ner
+    volumes: &ner-volumes
+      - ner-bashhistory:/commandhistory
+      - ner-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=ner --hostname=ner-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2"
+
+  ngrams:
+    profiles: ["ngrams", "text-analysis", "all"]
+    build: &ngrams-build
+      context: .
+      dockerfile: ./services/ngrams/Dockerfile
+    container_name: ngrams
+    volumes: &ngrams-volumes
+      - ngrams-bashhistory:/commandhistory
+      - ngrams-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=ngrams --hostname=ngrams-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1"
+
+  export:
+    profiles: ["export", "text-analysis", "all"]
+    build: &export-build
+      context: .
+      dockerfile: ./services/export/Dockerfile
+    container_name: export
+    volumes: &export-volumes
+      - export-bashhistory:/commandhistory
+      - export-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=worker.export.tasks worker --loglevel=INFO --queues=export --hostname=export-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: "2"
+
+  topic-modeling:
+    profiles: ["topic-modeling", "text-analysis", "all"]
+    build: &topic-modeling-build
+      context: .
+      dockerfile: ./services/topic_modeling/Dockerfile
+      args:
+        COMPUTE_TYPE: "${COMPUTE_TYPE:-cpu}"
+    container_name: topic-modeling
+    volumes: &topic-modeling-volumes
+      - topic-modeling-bashhistory:/commandhistory
+      - topic-modeling-tmp:/app/tmp
+      - topic-modeling-models:/app/models
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=topic_modeling --hostname=topic_modeling-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: "4"
+        # GPU support (optional, uncomment if GPU_USE=true)
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       device_ids: ["${GPU_DEVICE}"]
+        #       capabilities: [gpu]
+
+  network-analysis:
+    profiles: ["network-analysis", "all"]
+    build:
+      context: .
+      dockerfile: ./services/network_analysis/Dockerfile
+    container_name: network-analysis
+    volumes:
+      - network-analysis-bashhistory:/commandhistory
+      - network-analysis-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=network_analysis --hostname=network-analysis-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2"
+
+  temporal-analysis:
+    profiles: ["temporal-analysis", "all"]
+    build:
+      context: .
+      dockerfile: ./services/temporal_analysis/Dockerfile
+    container_name: temporal-analysis
+    volumes:
+      - temporal-analysis-bashhistory:/commandhistory
+      - temporal-analysis-tmp:/app/tmp
+    networks: *network
+    env_file: *env
+    command: celery --app=main worker --loglevel=INFO --queues=temporal_analysis --hostname=temporal-analysis-worker@%h --concurrency=2
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1"
 
   # kibana:
   #   image: docker.elastic.co/kibana/kibana:8.14.3
@@ -255,6 +412,25 @@ services:
           memory: 8g
           cpus: "0.5"
 
+  monitoring:
+    profiles: ["monitoring", "all"]
+    build:
+      context: .
+      dockerfile: ./services/monitoring/Dockerfile
+    container_name: monitoring
+    networks: *network
+    env_file: *env
+    ports:
+      - "8003:8003"  # Expose monitoring API
+    command: uvicorn main:app --host 0.0.0.0 --port 8003
+    depends_on:
+      - redis-processing
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+
 volumes:
   classification-bashhistory:
   classification-tmp:
@@ -264,6 +440,21 @@ volumes:
   image-embeddings-tmp:
   asr-bashhistory:
   asr-tmp:
+  sentiment-bashhistory:
+  sentiment-tmp:
+  ner-bashhistory:
+  ner-tmp:
+  ngrams-bashhistory:
+  ngrams-tmp:
+  export-bashhistory:
+  export-tmp:
+  topic-modeling-bashhistory:
+  topic-modeling-tmp:
+  topic-modeling-models:
+  network-analysis-bashhistory:
+  network-analysis-tmp:
+  temporal-analysis-bashhistory:
+  temporal-analysis-tmp:
 
 networks:
   teledash_default: # here ${TELEDASH_DOCKER_NETWORK} doesn't work, cause its a key. Needs to be replaced if name differs from default.

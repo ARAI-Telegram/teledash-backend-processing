@@ -1,0 +1,18 @@
+# Topic Modeling
+bertopic>=0.16.0
+umap-learn>=0.5.5
+hdbscan>=0.8.33
+# cuml-cu12>=24.10.0  # GPU-accelerated HDBSCAN and UMAP - disabled due to CUDA toolkit conflicts
+
+# NLP
+sentence-transformers>=2.2.2
+transformers>=4.35.0
+torch>=2.1.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+
+# Utilities
+tqdm>=4.65.0

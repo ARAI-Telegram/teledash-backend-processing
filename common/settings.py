@@ -79,6 +79,24 @@ class Settings(BaseSettings):
     classification_languages: List[str] = ["de"]  # TelConGBERT only supports German
     classification_interval_minutes: int = 120
 
+    # Topic Modeling
+    topic_model_type: str = "bertopic"
+    topic_embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    topic_min_size: int = 10
+    topic_n_topics: str = "auto"  # Can be "auto" or specific number
+    topic_min_char_length: int = 50
+    topic_update_interval_minutes: int = 15
+
+    # NER (Named Entity Recognition)
+    ner_model: str = "de_core_news_lg"
+    ner_confidence_threshold: float = 0.7
+    ner_update_interval_minutes: int = 60
+
+    # Sentiment Analysis
+    sentiment_model: str = "oliverguhr/german-sentiment-bert"
+    emotion_model: str = "j-hartmann/emotion-german-bert"
+    sentiment_update_interval_minutes: int = 60
+
     # ASR (Automatic Speech Recognition)
     asr_model: AsrModelType = AsrModelType.medium
     asr_vad_filter: bool = True

@@ -1,0 +1,21 @@
+# Sentiment Analysis Service - CPU Requirements
+
+# Core dependencies
+celery==5.2.3
+redis==4.5.4
+
+# ML/NLP dependencies
+transformers==4.44.2
+torch==2.0.1+cpu
+tokenizers==0.19.1
+sentencepiece==0.2.0
+
+# Data processing
+numpy==1.25.2
+pandas==2.1.0
+
+# Database
+elasticsearch==8.14.0
+
+# Utilities
+python-dateutil==2.8.2
