@@ -131,13 +131,20 @@ class Storage:
         if settings.storage_region:
             client_config["region_name"] = settings.storage_region
 
-        # For S3-compatible providers, use path-style addressing
+        # For S3-compatible providers, use path-style addressing and disable the default
+        # request/response checksums, which some S3-compatible gateways (e.g. quobjects) reject.
         if settings.storage_provider == "s3-compatible":
-            client_config["config"] = Config(s3={"addressing_style": "path"})
+            client_config["config"] = Config(
+                s3={"addressing_style": "path"},
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            )
 
         # Set use_ssl based on settings
         if not settings.storage_use_ssl:
             client_config["use_ssl"] = False
+
+        client_config["verify"] = settings.storage_verify_ssl
 
         self.client = boto3.client("s3", **client_config)
 
