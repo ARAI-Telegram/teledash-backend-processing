@@ -23,6 +23,39 @@ TMP_PATH = Path("/app/tmp")
 logger = get_task_logger(__name__)
 
 
+def get_attachment_duration_seconds(doc) -> Optional[float]:
+    """
+    Extract the media duration reported by Telegram from a document.
+
+    The duration is already part of the attachment metadata fetched from
+    Elasticsearch, so it can be checked before downloading the media file.
+
+    Args:
+        doc: The document (Message object) to process.
+
+    Returns:
+        Duration in seconds, or None if the document carries no duration metadata.
+    """
+    attachment = getattr(doc, "attachment", None)
+    if not attachment:
+        return None
+
+    # 'attachment' is a plain dict, but the nested 'raw' is an AttrList/AttrDict
+    # without a .get() method, so membership has to be checked explicitly.
+    raw = attachment.get("raw")
+    if raw is None or "duration" not in raw:
+        return None
+
+    duration = raw["duration"]
+    if not isinstance(duration, (int, float)):
+        logger.warning(
+            "Unexpected duration value %r for doc id %s; ignoring.", duration, doc.id
+        )
+        return None
+
+    return float(duration)
+
+
 def get_attachment_storage_refs_and_id(doc) -> Optional[Tuple[list, str]]:
     """
     Extract storage references and ID from a document if it has a relevant attachment.
@@ -305,6 +338,62 @@ def init_asr() -> None:
                 break
 
             last_processed_date = max(valid_dates)
+
+            # Skip media that is too long to transcribe. Very long files exhaust
+            # the worker's memory and kill the container, so they are filtered out
+            # here - before the file is downloaded - and marked as processed so
+            # they are not picked up again on the next run.
+            # Note: this runs after 'last_processed_date' is derived from the full
+            # batch, so pagination keeps advancing even if every doc is skipped.
+            max_duration = settings.asr_max_duration_seconds
+            if max_duration > 0:
+                within_duration_limit = []
+
+                for doc in unclassified_docs:
+                    duration = get_attachment_duration_seconds(doc)
+
+                    if duration is None:
+                        logger.debug(
+                            "No duration metadata for doc %s, processing it.", doc.id
+                        )
+                        within_duration_limit.append(doc)
+                        continue
+
+                    if duration <= max_duration:
+                        within_duration_limit.append(doc)
+                        continue
+
+                    logger.warning(
+                        "Skipping doc %s: duration %.0fs exceeds ASR_MAX_DURATION_SECONDS (%ds).",
+                        doc.id,
+                        duration,
+                        max_duration,
+                    )
+
+                    try:
+                        database.update_one_retry(
+                            index_name=build_index_name(
+                                IndexAlias.MESSAGE_INDEX_ALIAS, chat_id
+                            ),
+                            doc_id=doc.id,
+                            update_doc_body={
+                                "attachment": {
+                                    "transcription_status": "SUCCESS",
+                                    "transcription": None,
+                                    "transcription_skip_reason": (
+                                        f"duration {duration:.0f}s exceeds limit "
+                                        f"{max_duration}s"
+                                    ),
+                                }
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to mark doc_id {doc.id} as skipped: {e}",
+                            exc_info=True,
+                        )
+
+                unclassified_docs = within_duration_limit
 
             # Extract storage_refs and ids
             storage_refs_and_ids: list[Tuple[list, str]] = [

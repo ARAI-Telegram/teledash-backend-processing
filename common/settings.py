@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     asr_attachment_types: List[str] = ["audio", "voice"]
     asr_concurrency: int = 1
     asr_interval_minutes: int = 60
+    asr_max_duration_seconds: int = 14400  # 4h; 0 or negative disables the limit
 
     # Storage Provider
     storage_provider: Literal["aws", "s3-compatible"] = "s3-compatible"
